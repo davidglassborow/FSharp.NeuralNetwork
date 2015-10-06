@@ -1,0 +1,4 @@
+version: 0.0.{build}
+
+build_script:
+  - ./build.cmd
