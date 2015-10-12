@@ -5,11 +5,11 @@ open MathNet.Numerics.LinearAlgebra
 #nowarn "25"
 
 module NeuralNetwork =
-
+    
     let private prepend value (vec : Vector<float>) = vector (value :: Vector.toList vec)
 
-    let private prependForBias = prepend 1.0
-    
+    let private prependForBias = prepend 1.
+
     let shuffleInPlace = 
         let rng = System.Random()
         fun (arr : _ []) -> 
@@ -24,31 +24,39 @@ module NeuralNetwork =
 
     let neuron bias weights : float list = (bias :: Seq.toList weights)
 
-    let layer = array2D
+    let layer (weights : seq<#seq<_>>) : float [,] = array2D weights
 
     let sigmoid x = 1.0 / (1.0 + exp (-x))
 
+    type NeuronLayers = private Layers of Matrix<float> list
+
     type Network = 
-        { Weights : Matrix<float> list
-          Layers: float[,] list
+        { Layers : NeuronLayers
+          Weights : float [,] list
           Activations : (float -> float) list
-          Momentum: float
-          LearningRate: float
-          Error: float
+          Momentum : float
+          LearningRate : float
+          Error : float
           Epoch : int }
-        member internal x.OutputCount = (Seq.last x.Weights |> Matrix.rowCount)
-        member internal x.InputCount = (List.head x.Weights |> Matrix.columnCount) - 1
+
+    let inline private toLayers weights = Layers weights
+
+    let inline private weightsFor network = let (Layers weights) = network.Layers in weights
+
+    let inline private outputCount network = Seq.last (weightsFor network) |> Matrix.rowCount
+
+    let inline private inputCount network = (weightsFor network |> List.head |> Matrix.columnCount) - 1
 
     let network layers momentum learningRate =
         let weights, activations = List.unzip layers
-        { Weights = List.map DenseMatrix.ofArray2 weights
-          Layers = weights
+        { Layers = List.map DenseMatrix.ofArray2 weights |> toLayers
+          Weights = weights
           Activations = activations
           Momentum = momentum
           LearningRate = learningRate
           Error = nan
           Epoch = 0 }
-
+    
     let private compute weights activations input = 
         let ( *>> ) f g x = f x, g x
         let derivative eps f = fun x -> ((f (x + eps / 2.0) - f (x - eps / 2.0)) / eps)
@@ -103,30 +111,31 @@ module NeuralNetwork =
         try 
             Seq.fold(fun input (layer, activation) -> 
                 Vector.map activation (layer * prependForBias input)) 
-                (Seq.toList input |> vector) (List.zip network.Weights network.Activations)
+                (Seq.toList input |> vector) (List.zip (weightsFor network) network.Activations)
             |> Vector.toArray
         with 
-        | :? System.ArgumentException when network.InputCount <> Seq.length input ->
-            failwithf "Input size must be %i (given %i)." network.InputCount (Seq.length input)
+        // bad input is a fatal exception, so we're not worried about the performance cost here
+        | :? System.ArgumentException when inputCount network <> Seq.length input ->
+            failwithf "Input size must be %i (given %i)." (inputCount network) (Seq.length input)
         | _ -> reraise ()
 
     let train (network : Network) epoches samples =
         if epoches < 1 then invalidArg "epoches" "Epoches must be a positive non-zero integer."
         let samples' = 
             let (|>>) x f = f (fst x), f (snd x)
-            let inputCount, outputCount = network.InputCount, network.OutputCount
+            let inputSize, outputSize = inputCount network, outputCount network
             Seq.fold (fun acc sample -> 
                 match sample |>> Seq.length with
-                | inCount, outCount when inCount = inputCount && outCount = outputCount -> 
+                | inCount, outCount when inCount = inputSize && outCount = outputSize -> 
                     (sample |>> vector) :: acc
                 | inCount, outCount -> 
                     failwithf "Sample size must be %ix%i (given %ix%i)." 
-                        inputCount outputCount inCount outCount) [] samples
+                        inputSize outputSize inCount outCount) [] samples
             |> Seq.toArray
         
         let initDeltas = 
-            network.Weights
-            |> List.map (fun (layer : Matrix<_>) -> DenseMatrix.create layer.RowCount layer.ColumnCount 0.)
+            (weightsFor network)
+            |> List.map (fun (layer : Matrix<_>) -> DenseMatrix.zero layer.RowCount layer.ColumnCount)
         
         let step weights prevDeltas input target = 
             (compute weights network.Activations input)
@@ -151,9 +160,9 @@ module NeuralNetwork =
                             |> error expectedOut
                         err :: acc) [] samples'
                     |> List.average
-                { network with Weights = weights
-                               Layers = List.map Matrix.toArray2 weights
+                { network with Layers = toLayers weights
+                               Weights = List.map Matrix.toArray2 weights
                                Error = err
                                Epoch = network.Epoch + epoches }
         
-        loop 0 network.Weights initDeltas
+        loop 0 (weightsFor network) initDeltas
