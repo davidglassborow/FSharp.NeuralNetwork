@@ -2,6 +2,7 @@ namespace FSharp
 
 open MathNet.Numerics.LinearAlgebra
 
+/// Types and operations for artificial neural networks.
 module NeuralNetwork = 
 
     val private prepend : value:float -> vec:Vector<float> -> Vector<float>
@@ -88,11 +89,11 @@ module NeuralNetwork =
     /// backprop 1: returns the list of error signal vectors for the hidden and output layers
     val private errorSignals : weights:#Matrix<float> list -> target:Vector<float> -> layerOutputs:(Vector<float> * #Vector<float>) list -> Vector<float> list
 
-    // backprop 2: returns a list of error gradient matrices for each layer in the network
+    /// backprop 2: returns a list of error gradient matrices for each layer in the network
     val private gradients : weights:#Matrix<float> list -> input:Vector<float> -> target:Vector<float> -> layerOutputs:(Vector<float> * #Vector<float>) list -> Matrix<float> list
 
-    // backprop 3: adjusts the weights of a network according to its learning rate, momentum and the error gradients
+    /// backprop 3: adjusts the weights of a network according to its learning rate, momentum and the error gradients
     val private updateWeights : weights:Matrix<float> list -> learningRate:float -> momentum:float -> prevDeltas:Matrix<float> list -> gradients:Matrix<float> list -> (Matrix<float> * Matrix<float>) list
 
-    // computes the sum of squared errors
+    /// computes the sum of squared errors
     val private error : target:Vector<float> -> output:Vector<float> -> float
