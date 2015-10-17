@@ -58,9 +58,9 @@ module NeuralNetwork =
     /// <summary>
     /// Creates a new neural network.
     /// </summary>
-    /// <param name="layers">A list of tuples</param>
-    /// <param name="momentum"></param>
-    /// <param name="learningRate"></param>
+    /// <param name="layers">A list of tuples containing the weights and activation function for each layer.</param>
+    /// <param name="momentum">The momentum term.</param>
+    /// <param name="learningRate">The learning rate.</param>
     val network : layers:(float [,] * (float -> float)) list -> momentum:float -> learningRate:float -> Network
 
     /// <summary>
